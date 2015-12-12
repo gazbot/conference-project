@@ -95,23 +95,23 @@ class ConferenceApi(remote.Service):
     
 # - - - Sessions - - - - - - - - - - - - - - - - - - - - - -
 
-getConferenceSessions(websafeConferenceKey)
+# getConferenceSessions(websafeConferenceKey)
 
-getConferenceSessionsByType(websafeConferenceKey,typeOfSession)
+# getConferenceSessionsByType(websafeConferenceKey,typeOfSession)
 
-getSessionsBySpeaker(speaker)
+# getSessionsBySpeaker(speaker)
  
 
-createSession(SessionForm,websafeConferenceKey)
+# createSession(SessionForm,websafeConferenceKey)
 
-"/conference/{websafeConferenceKey}/session/"
-    - PUT = create a new Session based on the provided SessionForm and attach to 
-            the websafeConferenceKey
-    - GET = get all sessions for the websafeConferenceKey
+# "/conference/{websafeConferenceKey}/session/"
+#    - PUT = create a new Session based on the provided SessionForm and attach to 
+#            the websafeConferenceKey
+#    - GET = get all sessions for the websafeConferenceKey
     
-"/conference/{websafeConferenceKey}/session/{websafeSessionKey}"
-    - GET - return the sessionForm for the websafeSessionKey
-    - POST - update the session object from the SessionForm for the websafeSessionKey
+# "/conference/{websafeConferenceKey}/session/{websafeSessionKey}"
+#    - GET - return the sessionForm for the websafeSessionKey
+#    - POST - update the session object from the SessionForm for the websafeSessionKey
     
 
 # TODO: addSessionToWishlist(SessionKey)
@@ -126,6 +126,16 @@ createSession(SessionForm,websafeConferenceKey)
         
         if not request.name:
             raise endpoints.BadRequestException("Session 'name' field required")
+            
+        conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
+        
+        if not conf:
+            raise endpoints.BadRequestException("Conference for key %s does not exist" % request.websafeConferenceKey)
+        
+        if conf.organizerUserId != user_id:
+            raise endpoints.UnauthorizedException('User is not organiser of conference')
+        
+        
         
         # copy SessionFrom/ProtoRPC Message into dict
         data = {field.name: getattr(request, field.name) for field in request.all_fields()}
@@ -145,42 +155,21 @@ createSession(SessionForm,websafeConferenceKey)
         # 3. set the session's conference membership to websafeConferenceKey
         
         # generate Profile Key based on User ID and Session
+        # creation of Session and return modified SessionForm
         p_key = ndb.Key(Profile, user_id)
         s_id = Session.allocate_ids(size=1, parent=p_key)[0]
         s_key = ndb.Key(Session, s_id, parent=p_key)
+        data['key'] = s_key
         
+        # create Session
+        Session(**data).put()
         
-        """Create or update Conference object, returning ConferenceForm/request."""
-        # preload necessary data items
-        user = endpoints.get_current_user()
-        if not user:
-            raise endpoints.UnauthorizedException('Authorization required')
-        user_id = getUserId(user)
-
-        if not request.name:
-            raise endpoints.BadRequestException("Conference 'name' field required")
-
-        # set seatsAvailable to be same as maxAttendees on creation
-        if data["maxAttendees"] > 0:
-            data["seatsAvailable"] = data["maxAttendees"]
-        # generate Profile Key based on user ID and Conference
-        # ID based on Profile key get Conference key from ID
-        p_key = ndb.Key(Profile, user_id)
-        c_id = Conference.allocate_ids(size=1, parent=p_key)[0]
-        c_key = ndb.Key(Conference, c_id, parent=p_key)
-        data['key'] = c_key
-        data['organizerUserId'] = request.organizerUserId = user_id
-
-        # create Conference, send email to organizer confirming
-        # creation of Conference & return (modified) ConferenceForm
-        Conference(**data).put()
-        taskqueue.add(params={'email': user.email(),
-            'conferenceInfo': repr(request)},
-            url='/tasks/send_confirmation_email'
-        )
         return request
 
 
+    """ IN:  SessionForm, websafeConferenceKey
+        OUT: SessionForm
+    """
     @endpoints.method(SessionForm, SessionForm, 
             path='conference/{websafeConferenceKey}/session',
             http_method='POST', name='createSession')
