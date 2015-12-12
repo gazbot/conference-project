@@ -114,9 +114,71 @@ createSession(SessionForm,websafeConferenceKey)
     - POST - update the session object from the SessionForm for the websafeSessionKey
     
 
-addSessionToWishlist(SessionKey)
+# TODO: addSessionToWishlist(SessionKey)
 
-getSessionsInWishlist()
+# TODO: getSessionsInWishlist()
+
+    def _createSessionObject(self, request):
+        user = endpoints.get_current_user()
+        if not user:
+            raise endpoints.UnauthorizedException('Authorization required')
+        user_id = getUserId(user)
+        
+        if not request.name:
+            raise endpoints.BadRequestException("Session 'name' field required")
+        
+        # copy SessionFrom/ProtoRPC Message into dict
+        data = {field.name: getattr(request, field.name) for field in request.all_fields()}
+        del data['websafeKey']
+        del data['organizerDisplayName']
+        
+        for df in DEFAULTS:
+            if data[df] in (None, []):
+                data[df] = DEFAULTS[df]
+                setattr(request, df, DEFAULTS[df])
+                
+        if data['sessionDate']:
+            data['sessionDate'] = datetime.strptime(data['sessionDate'][:10], "%Y-%m-%d").date()
+        
+        # 1. get the conference ID from the URL.
+        # 2. validate the user is the conference organiser
+        # 3. set the session's conference membership to websafeConferenceKey
+        
+        # generate Profile Key based on User ID and Session
+        p_key = ndb.Key(Profile, user_id)
+        s_id = Session.allocate_ids(size=1, parent=p_key)[0]
+        s_key = ndb.Key(Session, s_id, parent=p_key)
+        
+        
+        """Create or update Conference object, returning ConferenceForm/request."""
+        # preload necessary data items
+        user = endpoints.get_current_user()
+        if not user:
+            raise endpoints.UnauthorizedException('Authorization required')
+        user_id = getUserId(user)
+
+        if not request.name:
+            raise endpoints.BadRequestException("Conference 'name' field required")
+
+        # set seatsAvailable to be same as maxAttendees on creation
+        if data["maxAttendees"] > 0:
+            data["seatsAvailable"] = data["maxAttendees"]
+        # generate Profile Key based on user ID and Conference
+        # ID based on Profile key get Conference key from ID
+        p_key = ndb.Key(Profile, user_id)
+        c_id = Conference.allocate_ids(size=1, parent=p_key)[0]
+        c_key = ndb.Key(Conference, c_id, parent=p_key)
+        data['key'] = c_key
+        data['organizerUserId'] = request.organizerUserId = user_id
+
+        # create Conference, send email to organizer confirming
+        # creation of Conference & return (modified) ConferenceForm
+        Conference(**data).put()
+        taskqueue.add(params={'email': user.email(),
+            'conferenceInfo': repr(request)},
+            url='/tasks/send_confirmation_email'
+        )
+        return request
 
 
     @endpoints.method(SessionForm, SessionForm, 
@@ -125,6 +187,7 @@ getSessionsInWishlist()
     def createSession(self, request):
         """Create new session."""
         return self._createSessionObject(request)
+
 
     def _updateSessionObject(self, request):
         """Update Session record and return updated SessionForm"""
@@ -160,8 +223,7 @@ getSessionsInWishlist()
             raise endpoints.ForbiddenException(
                 'Only the owner can update the session.')
             
-        # copy relevant fields from SessionForm to Session
-        #     
+        # copy relevant fields from SessionForm to Session    
         for field in request.all_fields():
             data = getattr(request, field.name)
             # only copy fields where data is provided
