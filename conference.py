@@ -96,8 +96,16 @@ class ConferenceApi(remote.Service):
 # - - - Sessions - - - - - - - - - - - - - - - - - - - - - -
 
 # getConferenceSessions(websafeConferenceKey)
+    @endpoints.method(message_types.VoidMessage, SessionForms, 
+            path='conference/{websafeConferenceKey}/sessions',
+            http_method='GET', name='getConferenceSessions')
+    def getConferenceSessions(self, request):
+        """Create new session."""
+        return self._getConferenceSessionObjects(request)
 
 # getConferenceSessionsByType(websafeConferenceKey,typeOfSession)
+    @endpoints.method('', SessionForms,
+            path='conference/{websafeConferenceKey}/sessions/)
 
 # getSessionsBySpeaker(speaker)
  
@@ -135,8 +143,6 @@ class ConferenceApi(remote.Service):
         if conf.organizerUserId != user_id:
             raise endpoints.UnauthorizedException('User is not organiser of conference')
         
-        
-        
         # copy SessionFrom/ProtoRPC Message into dict
         data = {field.name: getattr(request, field.name) for field in request.all_fields()}
         del data['websafeKey']
@@ -167,9 +173,6 @@ class ConferenceApi(remote.Service):
         return request
 
 
-    """ IN:  SessionForm, websafeConferenceKey
-        OUT: SessionForm
-    """
     @endpoints.method(SessionForm, SessionForm, 
             path='conference/{websafeConferenceKey}/session',
             http_method='POST', name='createSession')
@@ -233,6 +236,23 @@ class ConferenceApi(remote.Service):
         """Update session w/provided fields & return w/updated info."""
         return self._updateSessionObject(request)
 
+
+    def _copySessionToForm(self, sess, displayName):
+        """Copy relevant fields from Session to SessionForm"""
+        sf = SessionForm()
+        for field in sf.all_fields():
+            if hasattr(sess, field.name):
+                #convert Date to date string; copy the rest
+                if field.name.endswith('Date'):
+                    setattr(sf, field.name, str(getattr(sess, field.name)))
+                else:
+                    setattr(sf, field.name, getattr(sess, field.name))
+            elif field.name == 'websafeKey':
+                setattr(sf, field.name, sess.key.urlsafe())
+        if displayName:
+            setattr(sf, 'organizerDisplayName', displayName)
+        sf.check_initialized()
+        return sf
 
 # - - - Conference objects - - - - - - - - - - - - - - - - -
 
