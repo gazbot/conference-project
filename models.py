@@ -29,6 +29,7 @@ class Profile(ndb.Model):
     mainEmail = ndb.StringProperty()
     teeShirtSize = ndb.StringProperty(default='NOT_SPECIFIED')
     conferenceKeysToAttend = ndb.StringProperty(repeated=True)
+    sessionKeysWishlist = ndb.StringProperty(repeated=True)
 
 
 class ProfileMiniForm(messages.Message):
@@ -43,6 +44,7 @@ class ProfileForm(messages.Message):
     mainEmail = messages.StringField(2)
     teeShirtSize = messages.EnumField('TeeShirtSize', 3)
     conferenceKeysToAttend = messages.StringField(4, repeated=True)
+    sessionKeysWishlist = messages.StringField(5, repeated=True)
 
 
 class StringMessage(messages.Message):
@@ -85,18 +87,18 @@ class Session(ndb.Model):
 
 class ConferenceForm(messages.Message):
     """ConferenceForm -- Conference outbound form message"""
-    name            = messages.StringField(1)
-    description     = messages.StringField(2)
-    organizerUserId = messages.StringField(3)
-    topics          = messages.StringField(4, repeated=True)
-    city            = messages.StringField(5)
-    startDate       = messages.StringField(6)  # DateTimeField()
-    month           = messages.IntegerField(7)
-    maxAttendees    = messages.IntegerField(8)
-    seatsAvailable  = messages.IntegerField(9)
-    endDate         = messages.StringField(10)  # DateTimeField()
-    websafeKey      = messages.StringField(11)
-    organizerDisplayName = messages.StringField(12)
+    name                    = messages.StringField(1)
+    description             = messages.StringField(2)
+    organizerUserId         = messages.StringField(3)
+    topics                  = messages.StringField(4, repeated=True)
+    city                    = messages.StringField(5)
+    startDate               = messages.StringField(6)  # DateTimeField()
+    month                   = messages.IntegerField(7)
+    maxAttendees            = messages.IntegerField(8)
+    seatsAvailable          = messages.IntegerField(9)
+    endDate                 = messages.StringField(10)  # DateTimeField()
+    websafeKey              = messages.StringField(11)
+    organizerDisplayName    = messages.StringField(12)
 
 
 class SessionForm(messages.Message):
@@ -164,15 +166,3 @@ class ConferenceQueryForm(messages.Message):
 class ConferenceQueryForms(messages.Message):
     """ConferenceQueryForms -- multiple ConferenceQueryForm inbound form message"""
     filters = messages.MessageField(ConferenceQueryForm, 1, repeated=True)
-
-
-class SessionQueryForm(messages.Message):
-    """SessionQueryForm -- Session query inbound form message"""
-    field = messages.StringField(1)
-    operator = messages.StringField(2)
-    value = messages.StringField(3)
-
-
-class SessionQueryForms(messages.Message):
-    """SessionQueryForms -- multiple SessionQueryForm inbound form message"""
-    filters = messages.MessageField(SessionQueryForm, 1, repeated=True)
