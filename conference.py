@@ -84,6 +84,27 @@ CONF_POST_REQUEST = endpoints.ResourceContainer(
     websafeConferenceKey=messages.StringField(1),
 )
 
+CONF_SESS_GET_REQUEST = endpoints.ResourceContainer(
+    message_types.VoidMessage,
+    websafeConferenceKey=messages.StringField(1),
+    typeOfSession=messages.StringField(2),
+)
+
+CONF_SESS_POST_REQUEST = endpoints.ResourceContainer(
+    SessionForm,
+    websafeConferenceKey=messages.StringField(1),
+)
+
+SESS_GET_REQUEST = endpoints.ResourceContainer(
+    message_types.VoidMessage,
+    speaker=messages.StringField(1),
+)
+
+SESS_POST_REQUEST = endpoints.ResourceContainer(
+    message_types.VoidMessage,
+    websafeSessionKey=messages.StringField(1),
+)
+
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 
@@ -92,93 +113,146 @@ CONF_POST_REQUEST = endpoints.ResourceContainer(
     scopes=[EMAIL_SCOPE])
 class ConferenceApi(remote.Service):
     """Conference API v0.1"""
-    
+
 # - - - Sessions - - - - - - - - - - - - - - - - - - - - - -
 
 # getConferenceSessions(websafeConferenceKey)
-    @endpoints.method(message_types.VoidMessage, SessionForms, 
-            path='conference/{websafeConferenceKey}/sessions',
+    @endpoints.method(CONF_GET_REQUEST, SessionForms,
+            path='conference/{websafeConferenceKey}/sessions/',
             http_method='GET', name='getConferenceSessions')
     def getConferenceSessions(self, request):
+        """Get all Sessions for a conference"""
+        wsck = request.websafeConferenceKey
+        conf = ndb.Key(urlsafe=wsck).get()
+        if not conf:
+            raise endpoints.NotFoundException('Conference not found')
+
+        # user = endpoints.get_current_user()
+        # if not user:
+        #     raise endpoints.UnauthorizedException('Authorization required')
+        # user_id = getUserId(user)
+
+
+
+
+
+        """Return conferences created by user."""
+        # make sure user is authed
+        user = endpoints.get_current_user()
+        if not user:
+            raise endpoints.UnauthorizedException('Authorization required')
+        user_id = getUserId(user)
+
+        # create ancestor query for all key matches for this user
+        confs = Conference.query(ancestor=ndb.Key(Profile, user_id))
+        prof = ndb.Key(Profile, user_id).get()
+        # return set of ConferenceForm objects per Conference
+        return ConferenceForms(
+            items=[self._copyConferenceToForm(conf, getattr(prof, 'displayName')) for conf in confs]
+        )
+
+
+    # getConferenceSessionsByType(websafeConferenceKey,typeOfSession)
+    @endpoints.method(message_types.VoidMessage, SessionForms,
+            path='conference/{websafeConferenceKey}/sessions/',
+            http_method='GET', name='getConferenceSessionsByType')
+    def getConferenceSessionsByType(self, request):
+        """Return Sessions by Type."""
+        return self._getConferenceSessionsByType(request)
+
+    # getSessionsBySpeaker(speaker)
+    @endpoints.method(message_types.VoidMessage, SessionForms,
+            path='conference/{websafeConferenceKey}/sessions/',
+            http_method='GET', name='getConferenceSessionsBySpeaker')
+    def getConferenceSessionsBySpeaker(self, request):
+        """Return Sessions by Speaker."""
+        return self._getConferenceSessionsBySpeaker(request)
+
+
+    # createSession(SessionForm,websafeConferenceKey)
+    @endpoints.method(SessionForm, SessionForm,
+            path='conference/{websafeConferenceKey}/session',
+            http_method='POST', name='createSession')
+    def createSession(self, request):
         """Create new session."""
-        return self._getConferenceSessionObjects(request)
+        return self._createSessionObject(request)
 
-# getConferenceSessionsByType(websafeConferenceKey,typeOfSession)
-    @endpoints.method('', SessionForms,
-            path='conference/{websafeConferenceKey}/sessions/)
 
-# getSessionsBySpeaker(speaker)
- 
+    # updateSession(SessionForm,websafeConferenceKey, websafeSessionKey)
+    @endpoints.method(SESS_POST_REQUEST, SessionForm,
+            path='conference/{websafeConferenceKey}/session/{websafeSessionKey}',
+            http_method='PUT', name='updateSession')
+    def updateSession(self, request):
+        """Update session w/provided fields & return w/updated info."""
+        return self._updateSessionObject(request)
 
-# createSession(SessionForm,websafeConferenceKey)
 
-# "/conference/{websafeConferenceKey}/session/"
-#    - PUT = create a new Session based on the provided SessionForm and attach to 
-#            the websafeConferenceKey
-#    - GET = get all sessions for the websafeConferenceKey
-    
-# "/conference/{websafeConferenceKey}/session/{websafeSessionKey}"
-#    - GET - return the sessionForm for the websafeSessionKey
-#    - POST - update the session object from the SessionForm for the websafeSessionKey
-    
+    # addSessionToWishlist(SessionKey)
+    @endpoints.method(SESS_POST_REQUEST, SessionForm,
+            path='conference/{websafeConferenceKey}/session/{websafeSessionKey}/wishlist',
+            http_method='POST', name='addSessionToWishlist')
+    def addSessionToWishlist(self, request):
+        """Adds session to wishlist for user."""
+        return self._addSessionToWishlist(request)
 
-# TODO: addSessionToWishlist(SessionKey)
 
-# TODO: getSessionsInWishlist()
+    @endpoints.method(message_types.VoidMessage, SessionForms,
+            path='profile/wishlist',
+            http_method='GET', name='getSessionsInWishlist')
+    def getSessionsInWishlist(self, request):
+        """Get list of sessions the user has registered for."""
+        prof = self._getProfileFromUser() # get user Profile
+        sess_keys = [ndb.Key(urlsafe=wssk) for wssk in prof.sessionKeysWishlist]
+        sessions = ndb.get_multi(sess_keys)
+
+        return SessionForms(items=self._copySessionToForm(sess) for sess in sessions])
+
 
     def _createSessionObject(self, request):
         user = endpoints.get_current_user()
         if not user:
             raise endpoints.UnauthorizedException('Authorization required')
         user_id = getUserId(user)
-        
+
         if not request.name:
             raise endpoints.BadRequestException("Session 'name' field required")
-            
+
         conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
-        
+
         if not conf:
             raise endpoints.BadRequestException("Conference for key %s does not exist" % request.websafeConferenceKey)
-        
+
         if conf.organizerUserId != user_id:
             raise endpoints.UnauthorizedException('User is not organiser of conference')
-        
+
         # copy SessionFrom/ProtoRPC Message into dict
         data = {field.name: getattr(request, field.name) for field in request.all_fields()}
         del data['websafeKey']
         del data['organizerDisplayName']
-        
+
         for df in DEFAULTS:
             if data[df] in (None, []):
                 data[df] = DEFAULTS[df]
                 setattr(request, df, DEFAULTS[df])
-                
+
         if data['sessionDate']:
             data['sessionDate'] = datetime.strptime(data['sessionDate'][:10], "%Y-%m-%d").date()
-        
+
         # 1. get the conference ID from the URL.
         # 2. validate the user is the conference organiser
         # 3. set the session's conference membership to websafeConferenceKey
-        
+
         # generate Profile Key based on User ID and Session
         # creation of Session and return modified SessionForm
         p_key = ndb.Key(Profile, user_id)
         s_id = Session.allocate_ids(size=1, parent=p_key)[0]
         s_key = ndb.Key(Session, s_id, parent=p_key)
         data['key'] = s_key
-        
+
         # create Session
         Session(**data).put()
-        
+
         return request
-
-
-    @endpoints.method(SessionForm, SessionForm, 
-            path='conference/{websafeConferenceKey}/session',
-            http_method='POST', name='createSession')
-    def createSession(self, request):
-        """Create new session."""
-        return self._createSessionObject(request)
 
 
     def _updateSessionObject(self, request):
@@ -187,35 +261,35 @@ class ConferenceApi(remote.Service):
         if not user:
             raise endpoints.UnauthorizedException('Authorization required')
         user_id = getUserId(user)
-        
+
         # copy SessionForm/ProtoRPC Message into dict
         data = {field.name: gettattr(request, field.name) for field in request.all_fields()}
-        
+
         # update existing session
         sess = ndb.Key(urlsafe=request.websafeSessionKey).get()
         conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
-        
+
         # first check the conference exists
         if not conf:
             raise endpoints.NotFoundException(
                 'No conference found with key: %s' % request.websafeConferenceKey)
-        
+
         # then the session exists, otherwise nothing to update
         if not sess:
             raise endpoints.NotFoundException(
                 'No session found with key: %s' % request.websafeSessionKey)
-        
+
         # check the session belongs to the conference
         if sess.conferenceId != websafeConferenceKey:
             raise endpoints.NotFoundException(
                 'Session not found for conference: %s' % request.websafeConferenceKey)
-        
+
         # check that the user is the organizer
         if user_id != conf.organizerUserId:
             raise endpoints.ForbiddenException(
                 'Only the owner can update the session.')
-            
-        # copy relevant fields from SessionForm to Session    
+
+        # copy relevant fields from SessionForm to Session
         for field in request.all_fields():
             data = getattr(request, field.name)
             # only copy fields where data is provided
@@ -226,18 +300,10 @@ class ConferenceApi(remote.Service):
             setattr(sess, field.name, data)
         sess.put()
         prof = ndb.Key(Profile, user_id).get()
-        return self._copySessionToForm(sess, getattr(prof, 'displayName'))
+        return self._copySessionToForm(sess)
 
 
-    @endpoints.method(CONF_POST_REQUEST, SessionForm,
-            path='conference/{websafeConferenceKey}/session/{websafeSessionKey}',
-            http_method='PUT', name='updateSession')
-    def updateSession(self, request):
-        """Update session w/provided fields & return w/updated info."""
-        return self._updateSessionObject(request)
-
-
-    def _copySessionToForm(self, sess, displayName):
+    def _copySessionToForm(self, sess):
         """Copy relevant fields from Session to SessionForm"""
         sf = SessionForm()
         for field in sf.all_fields():
@@ -249,8 +315,6 @@ class ConferenceApi(remote.Service):
                     setattr(sf, field.name, getattr(sess, field.name))
             elif field.name == 'websafeKey':
                 setattr(sf, field.name, sess.key.urlsafe())
-        if displayName:
-            setattr(sf, 'organizerDisplayName', displayName)
         sf.check_initialized()
         return sf
 
