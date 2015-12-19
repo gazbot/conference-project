@@ -72,17 +72,13 @@ class Conference(ndb.Model):
 
 
 class Session(ndb.Model):
-    name                    = ndb.StringField()
-    description             = ndb.StringField()
-    highlights              = ndb.StringField(repeated=True)
-    startTime               = ndb.StringField()
-    endTime                 = ndb.StringField()
-    duration                = ndb.StringField()  # 24 hour format
-    dateOfSession           = ndb.DateField()
+    name                    = ndb.StringProperty(required=True)
+    description             = ndb.StringProperty()
+    highlights              = ndb.StringProperty(repeated=True)
+    startTime               = ndb.TimeProperty()
+    sessionDate             = ndb.DateProperty()
     typeOfSession           = ndb.StringProperty(default='NOT_SPECIFIED')
-    conferenceId            = ndb.StringField()
-    speakers                = ndb.StringField(repeated=True)
-    primarySpeaker          = ndb.StringField()
+    speaker                 = ndb.StringProperty(required=True)
 
 
 class ConferenceForm(messages.Message):
@@ -107,16 +103,10 @@ class SessionForm(messages.Message):
     description             = messages.StringField(2)
     highlights              = messages.StringField(3, repeated=True)
     startTime               = messages.StringField(4)
-    endTime                 = messages.StringField(5)
-    duration                = messages.StringField(6)  # 24 hour format
-    sessionDate             = messages.DateField(7)
-    typeOfSession           = messages.EnumField('TypeOfSession', 8)
-    websafeConferenceKey    = messages.StringField(9)
-    speakers                = messages.StringField(10, repeated=True)
-    primarySpeaker          = messages.StringField(11)
-    websafeSessionKey       = messages.StringField(12)
-    speakerDisplayName      = messages.StringField(13)
-    conferenceDisplayName   = messages.StringField(14)
+    sessionDate             = messages.StringField(5)
+    typeOfSession           = messages.EnumField('TypeOfSession', 6)
+    speaker                 = messages.StringField(7)
+    websafeKey              = messages.StringField(8)
 
 
 class ConferenceForms(messages.Message):
