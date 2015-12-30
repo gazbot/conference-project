@@ -41,8 +41,8 @@ in the appropriate `Conference`.
 
 `Session` indices have been added to support the new endpoints (typeOfSession/speaker etc)
 
-1. First query added is [getAllSessionsByType] to support displaying [Session] types, across all [Conference]'s. 
-1. Second query added is [getWorkshopsStartingSoonForConference] to support a potential future feature, a portlet
+1. First query added is `getAllSessionsByType` to support displaying `Session` types, across all `Conference`'s. 
+1. Second query added is `getWorkshopsStartingSoonForConference` to support a potential future feature, a portlet
    to display upcoming workshops starting soon for a conference, which could be a large TV display at the conference.
 
 #### Query Problem
@@ -54,7 +54,7 @@ in the appropriate `Conference`.
   iterate over the least amount of rows as getting the datastore to perform the bigger query would be more efficient.
         
 ### Task 4
-[getFeaturedSpeaker] has been implemented.
+`getFeaturedSpeaker` has been implemented.
 
 
 [1]: https://developers.google.com/appengine
