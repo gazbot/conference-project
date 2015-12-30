@@ -1,6 +1,6 @@
 {
  "kind": "discovery#restDescription",
- "etag": "\"u_zXkMELIlX4ktyNbM2XKD4vK8E/GGy89IRkY73JQ8ZG8npFKxvHpf0\"",
+ "etag": "\"u_zXkMELIlX4ktyNbM2XKD4vK8E/4dgD_pvLhMMJUs-0XlXJiVWXTLU\"",
  "discoveryVersion": "v1",
  "id": "conference:v1",
  "name": "conference",
@@ -433,6 +433,24 @@
     "https://www.googleapis.com/auth/userinfo.email"
    ]
   },
+  "getAllSessionsByType": {
+   "id": "conference.getAllSessionsByType",
+   "path": "getAllSessionsByType",
+   "httpMethod": "GET",
+   "description": "Return all Sessions, regardless of Conference, by type",
+   "parameters": {
+    "speaker": {
+     "type": "string",
+     "location": "query"
+    }
+   },
+   "response": {
+    "$ref": "ModelsSessionForms"
+   },
+   "scopes": [
+    "https://www.googleapis.com/auth/userinfo.email"
+   ]
+  },
   "getAnnouncement": {
    "id": "conference.getAnnouncement",
    "path": "conference/announcement/get",
@@ -580,6 +598,32 @@
    "path": "getSessionsInWishlist",
    "httpMethod": "GET",
    "description": "Get sessions in wishlist.",
+   "response": {
+    "$ref": "ModelsSessionForms"
+   },
+   "scopes": [
+    "https://www.googleapis.com/auth/userinfo.email"
+   ]
+  },
+  "getTopSessionsForConference": {
+   "id": "conference.getTopSessionsForConference",
+   "path": "conference/{websafeConferenceKey}/top",
+   "httpMethod": "GET",
+   "description": "Return the top 3 Sessions for a Conference",
+   "parameters": {
+    "typeOfSession": {
+     "type": "string",
+     "location": "query"
+    },
+    "websafeConferenceKey": {
+     "type": "string",
+     "required": true,
+     "location": "path"
+    }
+   },
+   "parameterOrder": [
+    "websafeConferenceKey"
+   ],
    "response": {
     "$ref": "ModelsSessionForms"
    },

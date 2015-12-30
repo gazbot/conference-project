@@ -592,7 +592,7 @@ class ConferenceApi(remote.Service):
         wssk = session.key.urlsafe()
         for field in sf.all_fields():
             if hasattr(session, field.name):
-                # format date fields to string for form.
+                # format date/time fields to string for form.
                 if field.name.endswith('Date') or field.name.endswith('Time'):
                     setattr(sf, field.name, str(getattr(session, field.name)))
                 elif field.name == 'typeOfSession':
@@ -637,9 +637,11 @@ class ConferenceApi(remote.Service):
         wsck = request.websafeConferenceKey
         sessType = request.typeOfSession
         conf = ndb.Key(urlsafe=wsck).get()
+        # check the provided key exists
         if not conf:
             raise endpoints.NotFoundException(
                 'No conference found for key: %s' % wsck)
+        # find all sessions belonging to the conference key
         sessions = Session.query(ancestor=conf.key)
         sessions = sessions.filter(Session.typeOfSession==sessType)
         return SessionForms(
@@ -787,4 +789,41 @@ class ConferenceApi(remote.Service):
                          speaker + ', Sessions: ' + speakerSessions)
             
 
+# - - - - - Additional Queries - - - - - -
+    @endpoints.method(SESS_GET_REQUEST, SessionForms,
+        path='getAllSessionsByType',
+        http_method='GET', name='getAllSessionsByType')
+    def getAllSessionsByType(self, request):
+        """Return all Sessions, regardless of Conference, by type"""
+        typeOfSession = request.typeOfSession
+        q = Session.query(Session.typeOfSession == typeOfSession)
+        return SessionForms(
+            items=[self._copySessionToForm(sess, gettatr(ndb.Key(urlsafe=sess.conferenceId.get())))
+                   for sess in q])
+
+
+    @endpoints.method(CONF_SESS_GET_REQUEST, SessionForms,
+        path='/conference/{websafeConferenceKey}/top',
+        http_method='GET', name='getTopSessionsForConference')
+    def getWorkshopsStartingSoonForConference():
+        """Return the top 3 Sessions for a Conference"""
+        wsck = request.websafeConferenceKey
+        conf = ndb.Key(urlsafe=wsck).get()
+        today = date.now()
+        if not conf:
+            raise endpoints.NotFoundException(
+                'Invalid Conference ID: %s' % wsck)
+            
+        q = Session.query(Session.conferenceId==wsck)
+        q = q.filter(Session.sessionDate==today)
+        q = q.filter(Session.typeOfSession==getattr(TypeOfSession, 'WORKSHOP'))
+        q = q.filter(Session.startTime > datetime.datetime.now())
+        q = q.order(Session.startTime)
+        q = q.fetch(3)
+        
+        return SessionForms(
+            items=[self._copySessionToForm(sess, getattr(ndb.Key(urlsafe=sess.conferenceId.get())))
+                   for sess in q])
+        
+        
 api = endpoints.api_server([ConferenceApi]) # register API
