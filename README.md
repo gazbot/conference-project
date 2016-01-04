@@ -54,6 +54,7 @@ in the appropriate `Conference`.
   iterate over the least amount of rows as getting the datastore to perform the bigger query would be more efficient.
         
 ### Task 4
+`/tasks/set_featured_speaker` has been implemented and executed via the Task Queue each time a new session is added.
 `getFeaturedSpeaker` has been implemented.
 
 

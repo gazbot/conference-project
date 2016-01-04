@@ -40,11 +40,9 @@ class SendConfirmationEmailHandler(webapp2.RequestHandler):
 
 class SetFeaturedSpeakerHandler(webapp2.RequestHandler):
     def post(self):
-        """Update the memcache with the featured speaker."""
-        ConferenceApi._cacheFeaturedSpeaker(
-            self.request.get('speaker_name'),
-            self.request.get('session_list'))
-        self.response.set_status(204)
+        """Background job to select appropriate keynote speaker, triggered upon createSession"""
+        ConferenceApi._calculateFeaturedSpeaker(self.request.get('websafeConferenceKey'),
+                                                self.request.get('websafeSessionKey'))
         
 
 app = webapp2.WSGIApplication([

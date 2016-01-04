@@ -51,6 +51,7 @@ from utils import getUserId
 EMAIL_SCOPE = endpoints.EMAIL_SCOPE
 API_EXPLORER_CLIENT_ID = endpoints.API_EXPLORER_CLIENT_ID
 MEMCACHE_ANNOUNCEMENTS_KEY = "RECENT_ANNOUNCEMENTS"
+MEMCACHE_FEATURED_SPEAKER_KEY = "CONF_FEAT_SPEAK"
 ANNOUNCEMENT_TPL = ('Last chance to attend! The following conferences '
                     'are nearly sold out: %s')
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -721,8 +722,8 @@ class ConferenceApi(remote.Service):
         sess = ndb.Key(urlsafe=wssk).get()
         
         taskqueue.add(params={'websafeConferenceKey': wsck,
-                              'speaker': sess.speaker},
-                              url='/tasks/setFeaturedSpeaker')
+                              'websafeSessionKey': wssk},
+                              url='/tasks/set_featured_speaker')
         
         return self._copySessionToForm(sess)
     
@@ -780,14 +781,50 @@ class ConferenceApi(remote.Service):
 
 # - - - - - Speaker - - - - - - 
     @staticmethod
-    def _setFeaturedSpeaker(wsck, speaker):
+    def _calculateFeaturedSpeaker(wsck, wssk):
+        """Upon adding a new session, check if the new speaker should be the keynote."""
+        # load the conference and session objects from websafe keys.
         conf = ndb.Key(urlsafe=wsck).get()
-        sessions = Session.query(Session.conferenceId == wsck)
-        if sessions.count() > 1:
-            speakerSessions = ", ".join([session.name for session in sessions])
-            memcache.add('CONF_FEATURED_SPEAKER_' + wsck, 'Featured Speaker: ' + 
-                         speaker + ', Sessions: ' + speakerSessions)
+        sess = ndb.Key(urlsafe=wssk).get()
+        
+        # retrieve the current keynote speaker from memcache
+        memSpeaker = memcache.get('_'.join((MEMCACHE_FEATURED_SPEAKER_KEY, wsck)))
+        
+        # if there is no memcache entry add it for this conference.
+        if memSpeaker is None:
+            memcache.set('_'.join((MEMCACHE_FEATURED_SPEAKER_KEY, wsck)), sess.speaker)
+                        
+        # speaker being added is different to the current keynote speaker,
+        # see who has the higher session count and set memcache appropriately.
+        if memSpeaker != sess.speaker:
+            # if the speaker being added is different to the current keynote,
+            # check the counts of both
             
+            # get the count of the newly added speaker
+            q1 = Session.query(ancestor=conf.key)
+            q1 = q1.filter(Session.speaker==sess.speaker)
+            
+            # get the count of the current keynote speaker
+            q2 = Session.query(ancestor=conf.key)
+            q2 = q2.filter(Session.speaker==memSpeaker)
+            
+            # if the newly added sessions speaker has more sessions, set to be the keynote.
+            if q1.count > q2.count:
+                memcache.set('_'.join(MEMCACHE_FEATURED_SPEAKER_KEY, wsck), sess.speaker)
+                
+          
+    @endpoints.method(CONF_GET_REQUEST, StringMessage,
+        path='conference/{websafeConferenceKey}/featuredspeaker',
+        http_method='GET', name='getFeaturedSpeaker')
+    def getFeaturedSpeaker(self, request):
+        """Return the featured (keynote) speaker for the conference."""
+        wsck = request.websafeConferenceKey
+        speaker = memcache.get('_'.join((MEMCACHE_FEATURED_SPEAKER_KEY, wsck)))
+        # this check helps incase this endpoint is hit before a session is added.
+        if speaker is None:
+            speaker = 'No keynote speaker.'
+        return StringMessage(data=speaker)
+        
 
 # - - - - - Additional Queries - - - - - -
     @endpoints.method(SESS_GET_REQUEST, SessionForms,

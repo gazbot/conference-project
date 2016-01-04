@@ -1,6 +1,6 @@
 {
  "kind": "discovery#restDescription",
- "etag": "\"u_zXkMELIlX4ktyNbM2XKD4vK8E/4dgD_pvLhMMJUs-0XlXJiVWXTLU\"",
+ "etag": "\"u_zXkMELIlX4ktyNbM2XKD4vK8E/SDXxzI2aeKUqlb1abS05NqlZzw8\"",
  "discoveryVersion": "v1",
  "id": "conference:v1",
  "name": "conference",
@@ -554,6 +554,28 @@
    "description": "Get list of conferences that user has registered for.",
    "response": {
     "$ref": "ModelsConferenceForms"
+   },
+   "scopes": [
+    "https://www.googleapis.com/auth/userinfo.email"
+   ]
+  },
+  "getFeaturedSpeaker": {
+   "id": "conference.getFeaturedSpeaker",
+   "path": "conference/{websafeConferenceKey}/featuredspeaker",
+   "httpMethod": "GET",
+   "description": "Return the featured (keynote) speaker for the conference.",
+   "parameters": {
+    "websafeConferenceKey": {
+     "type": "string",
+     "required": true,
+     "location": "path"
+    }
+   },
+   "parameterOrder": [
+    "websafeConferenceKey"
+   ],
+   "response": {
+    "$ref": "ModelsStringMessage"
    },
    "scopes": [
     "https://www.googleapis.com/auth/userinfo.email"
