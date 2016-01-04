@@ -115,6 +115,11 @@ SESS_GET_REQUEST = endpoints.ResourceContainer(
     speaker=messages.StringField(1),
 )
 
+SESS_DELETE_REQUEST = endpoints.ResourceContainer(
+    message_types.VoidMessage,
+    websafeSessionKey=messages.StringField(1),
+)
+
 SESS_POST_REQUEST = endpoints.ResourceContainer(
     message_types.VoidMessage,
     websafeSessionKey=messages.StringField(1),
@@ -778,6 +783,27 @@ class ConferenceApi(remote.Service):
         sessions = [ndb.Key(urlsafe=wssk).get() for wssk in prof.sessionKeysWishlist]
         return SessionForms(
             items=[self._copySessionToForm(session) for session in sessions])
+            
+    
+    @endpoints.method(SESS_DELETE_REQUEST, BooleanMessage,
+        path='session/{websafeSessionKey}',
+        http_method='DELETE', name='deleteSessionInWishlist')
+    def deleteSessionInWishlist(self, request):
+        """Delete the session from the user's wishlist."""
+        prof = self._getProfileFromUser()
+        wssk = request.websafeSessionKey
+        # check if session exists in user's wishlist
+        if wssk in prof.sessionKeysWishlist:
+            # remove the session key from the wishlist
+            prof.sessionKeysWishlist.remove(wssk)
+            retval = True
+            prof.put()
+        else:
+            # session key not in users wishlist, return value is false.
+            retval = False
+        # write back the changes to the datastore
+
+        return BooleanMessage(data=retval)
 
 # - - - - - Speaker - - - - - - 
     @staticmethod

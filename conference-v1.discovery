@@ -1,6 +1,6 @@
 {
  "kind": "discovery#restDescription",
- "etag": "\"u_zXkMELIlX4ktyNbM2XKD4vK8E/SDXxzI2aeKUqlb1abS05NqlZzw8\"",
+ "etag": "\"u_zXkMELIlX4ktyNbM2XKD4vK8E/Bo-ZpmYsrSsBr9me8Y9zxw6wWKg\"",
  "discoveryVersion": "v1",
  "id": "conference:v1",
  "name": "conference",
@@ -416,6 +416,28 @@
    },
    "response": {
     "$ref": "ModelsSessionForm"
+   },
+   "scopes": [
+    "https://www.googleapis.com/auth/userinfo.email"
+   ]
+  },
+  "deleteSessionInWishlist": {
+   "id": "conference.deleteSessionInWishlist",
+   "path": "session/{websafeSessionKey}",
+   "httpMethod": "DELETE",
+   "description": "Delete the session from the user's wishlist.",
+   "parameters": {
+    "websafeSessionKey": {
+     "type": "string",
+     "required": true,
+     "location": "path"
+    }
+   },
+   "parameterOrder": [
+    "websafeSessionKey"
+   ],
+   "response": {
+    "$ref": "ModelsBooleanMessage"
    },
    "scopes": [
     "https://www.googleapis.com/auth/userinfo.email"
