@@ -36,9 +36,9 @@ defined as a String field. `Session`'s are linked to Conferences in multiple way
 A `Session` can be added/removed from a user's Wishlist, regardless of being registered
 in the appropriate `Conference`.
 The following functions have been implemented.
-1. `addSessionToWishlist(SessionKey)`
-1. `getSessionsInWishlist()`
-1. `deleteSessionInWishlist(SessionKey)`
+1. addSessionToWishlist(SessionKey)
+1. getSessionsInWishlist()
+1. deleteSessionInWishlist(SessionKey)
 
 
 ### Task 3
