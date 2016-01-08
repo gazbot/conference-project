@@ -72,6 +72,7 @@ class Conference(ndb.Model):
 
 
 class Session(ndb.Model):
+    """Session -- Session object"""
     name                    = ndb.StringProperty(required=True)
     description             = ndb.StringProperty()
     highlights              = ndb.StringProperty(repeated=True)
@@ -139,6 +140,7 @@ class TeeShirtSize(messages.Enum):
 
 
 class TypeOfSession(messages.Enum):
+    """TypeOfSession -- session type enumeration value"""
     NOT_SPECIFIED = 1
     LECTURE = 2
     KEYNOTE = 3

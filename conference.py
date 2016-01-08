@@ -115,6 +115,12 @@ SESS_GET_REQUEST = endpoints.ResourceContainer(
     speaker=messages.StringField(1),
 )
 
+SESS_TYPE_GET_REQUEST = endpoints.ResourceContainer(
+    message_types.VoidMessage,
+    speaker=messages.StringField(1),
+    typeOfSession=messages.StringField(2),
+)
+
 SESS_DELETE_REQUEST = endpoints.ResourceContainer(
     message_types.VoidMessage,
     websafeSessionKey=messages.StringField(1),
@@ -612,7 +618,7 @@ class ConferenceApi(remote.Service):
         return sf
         
     @endpoints.method(message_types.VoidMessage, SessionForms,
-        path='querySessions', http_method='POST', name='querySessions')
+        path='querySessions', http_method='GET', name='querySessions')
     def querySessions(self, request):
         """Get all Sessions."""
         q = Session.query()
@@ -636,7 +642,7 @@ class ConferenceApi(remote.Service):
         
     
     @endpoints.method(CONF_SESS_GET_REQUEST, SessionForms,
-        path='conference/{websafeConferenceKey}/session/{typeOfSession}',
+        path='conference/{websafeConferenceKey}/session/type/{typeOfSession}',
         http_method='POST', name='getConferenceSessionsByType')
     def getConferenceSessionsByType(self, request):
         """For a Conference, return all Sessions that match the given type."""
@@ -649,7 +655,7 @@ class ConferenceApi(remote.Service):
                 'No conference found for key: %s' % wsck)
         # find all sessions belonging to the conference key
         sessions = Session.query(ancestor=conf.key)
-        sessions = sessions.filter(Session.typeOfSession==sessType)
+        sessions = sessions.filter(Session.typeOfSession == sessType)
         return SessionForms(
             items=[self._copySessionToForm(session) for session in sessions])
 
@@ -660,7 +666,7 @@ class ConferenceApi(remote.Service):
     def getSessionsBySpeaker(self, request):
         """Return SessionForms of sessions given by speaker"""
         q = Session.query()
-        q = q.filter(Session.speaker==request.speaker)
+        q = q.filter(Session.speaker == request.speaker)
         return SessionForms(
             items=[self._copySessionToForm(session) for session in q])
     
@@ -687,7 +693,6 @@ class ConferenceApi(remote.Service):
         for df in SESSION_DEFAULTS:
             if data[df] in (None, []):
                 data[df] = SESSION_DEFAULTS[df]
-                setattr(request, df, SESSION_DEFAULTS[df])
         
         if data['typeOfSession']:
             data['typeOfSession'] = str(data['typeOfSession'])
@@ -749,7 +754,7 @@ class ConferenceApi(remote.Service):
         latestStart = datetime.strptime('19:00', "%H:%M").time()
         sessions = Session.query(Session.startTime < latestStart)
         nonWorkshopSessions = [sess for sess in sessions
-                               if getattr(TypeOfSession, sess.typeOfSession) != 'WORKSHOP']
+                               if sess.typeOfSession != 'WORKSHOP']
         return SessionForms(
             items = [self._copySessionToForm(sess) for sess in nonWorkshopSessions]
         )
@@ -767,6 +772,9 @@ class ConferenceApi(remote.Service):
         if not session:
             raise endpoints.NotFoundException(
                 'No Session found for key: %s' % wssk)
+        if session.kind() != 'Session':
+            raise endpoints.BadRequestException(
+                'Key provided is not a valid Session: %s' % wssk)
         if wssk not in prof.sessionKeysWishlist:
             prof.sessionKeysWishlist.append(wssk)
             prof.put()
@@ -814,12 +822,30 @@ class ConferenceApi(remote.Service):
         sess = ndb.Key(urlsafe=wssk).get()
         
         # retrieve the current keynote speaker from memcache
-        memSpeaker = memcache.get('_'.join((MEMCACHE_FEATURED_SPEAKER_KEY, wsck)))
+        # key is CONF_FEAT_SPEAK_{wsck}
+        memSpeakerAnn = memcache.get('_'.join((MEMCACHE_FEATURED_SPEAKER_KEY, wsck)))
         
         # if there is no memcache entry add it for this conference.
-        if memSpeaker is None:
-            memcache.set('_'.join((MEMCACHE_FEATURED_SPEAKER_KEY, wsck)), sess.speaker)
-                        
+        if memSpeakerAnn is None:
+            # pull out all of the sessions this speaker is giving
+            speakerSessions = Session.query(ancestor=conf.key)
+            speakerSessions.filter(Session.speaker == sess.speaker)
+            
+            # initialise the empty string
+            sessionsString = ''
+            
+            # iterate over all of the speakers sessions
+            for ss in speakerSessions:
+                # add the session name to the string
+                sessionsString.append((ss.name,','))
+            
+            # TODO: remove the trailing comma.
+            speakerAnnString = '|'.join((sess.speaker, sessionsString))
+            memcache.set('_'.join((MEMCACHE_FEATURED_SPEAKER_KEY, wsck)), speakerAnnString)
+               
+        # retrieved string is {speakerName}|[{session.name},]
+        memSpeaker = split('|', memSpeakerAnn)
+                 
         # speaker being added is different to the current keynote speaker,
         # see who has the higher session count and set memcache appropriately.
         if memSpeaker != sess.speaker:
@@ -828,15 +854,25 @@ class ConferenceApi(remote.Service):
             
             # get the count of the newly added speaker
             q1 = Session.query(ancestor=conf.key)
-            q1 = q1.filter(Session.speaker==sess.speaker)
+            q1 = q1.filter(Session.speaker == sess.speaker)
             
             # get the count of the current keynote speaker
             q2 = Session.query(ancestor=conf.key)
-            q2 = q2.filter(Session.speaker==memSpeaker)
+            q2 = q2.filter(Session.speaker == memSpeaker)
             
             # if the newly added sessions speaker has more sessions, set to be the keynote.
             if q1.count > q2.count:
-                memcache.set('_'.join(MEMCACHE_FEATURED_SPEAKER_KEY, wsck), sess.speaker)
+                # initialise the empty string
+                sessionsString = ''
+            
+                # iterate over all of the speakers sessions
+                for ss in q1:
+                    # add the session name to the string
+                    sessionsString.append((ss.name,','))
+                
+                # TODO: remove the trailing comma.
+                speakerAnnString = '|'.join((sess.speaker, sessionsString))
+                memcache.set('_'.join((MEMCACHE_FEATURED_SPEAKER_KEY, wsck)), speakerAnnString)
                 
           
     @endpoints.method(CONF_GET_REQUEST, StringMessage,
@@ -853,7 +889,7 @@ class ConferenceApi(remote.Service):
         
 
 # - - - - - Additional Queries - - - - - -
-    @endpoints.method(SESS_GET_REQUEST, SessionForms,
+    @endpoints.method(SESS_TYPE_GET_REQUEST, SessionForms,
         path='getAllSessionsByType',
         http_method='GET', name='getAllSessionsByType')
     def getAllSessionsByType(self, request):
@@ -861,7 +897,7 @@ class ConferenceApi(remote.Service):
         typeOfSession = request.typeOfSession
         q = Session.query(Session.typeOfSession == typeOfSession)
         return SessionForms(
-            items=[self._copySessionToForm(sess, gettatr(ndb.Key(urlsafe=sess.conferenceId.get())))
+            items=[self._copySessionToForm(sess)
                    for sess in q])
 
 
@@ -869,17 +905,17 @@ class ConferenceApi(remote.Service):
         path='/conference/{websafeConferenceKey}/top',
         http_method='GET', name='getTopSessionsForConference')
     def getWorkshopsStartingSoonForConference():
-        """Return the top 3 Sessions for a Conference"""
+        """Return three sessions starting soon for a Conference"""
         wsck = request.websafeConferenceKey
         conf = ndb.Key(urlsafe=wsck).get()
-        today = date.now()
+        today = datetime.now()
         if not conf:
             raise endpoints.NotFoundException(
                 'Invalid Conference ID: %s' % wsck)
             
         q = Session.query(Session.conferenceId==wsck)
-        q = q.filter(Session.sessionDate==today)
-        q = q.filter(Session.typeOfSession==getattr(TypeOfSession, 'WORKSHOP'))
+        q = q.filter(Session.sessionDate == today)
+        q = q.filter(Session.typeOfSession == 'WORKSHOP')
         q = q.filter(Session.startTime > datetime.datetime.now())
         q = q.order(Session.startTime)
         q = q.fetch(3)
