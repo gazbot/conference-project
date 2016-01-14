@@ -768,13 +768,17 @@ class ConferenceApi(remote.Service):
         """Add a Session to the users wishlist."""
         prof = self._getProfileFromUser()
         wssk = request.websafeSessionKey
-        session = ndb.Key(urlsafe=wssk).get()
+        session = ndb.Key(urlsafe=wssk)
+        if session.kind() != 'Session':
+            raise endpoints.BadRequestException(
+                'Not a valid Session key: %s' % wssk)
+        else:
+            session.get()
+            
         if not session:
             raise endpoints.NotFoundException(
                 'No Session found for key: %s' % wssk)
-        if session.kind() != 'Session':
-            raise endpoints.BadRequestException(
-                'Key provided is not a valid Session: %s' % wssk)
+
         if wssk not in prof.sessionKeysWishlist:
             prof.sessionKeysWishlist.append(wssk)
             prof.put()
@@ -827,6 +831,7 @@ class ConferenceApi(remote.Service):
         
         # if there is no memcache entry add it for this conference.
         if memSpeakerAnn is None:
+            # this is the initial session of the conference.
             # pull out all of the sessions this speaker is giving
             speakerSessions = Session.query(ancestor=conf.key)
             speakerSessions.filter(Session.speaker == sess.speaker)
@@ -837,42 +842,53 @@ class ConferenceApi(remote.Service):
             # iterate over all of the speakers sessions
             for ss in speakerSessions:
                 # add the session name to the string
-                sessionsString.append((ss.name,','))
+                sessionsString += "%s," % (ss.name)
             
-            # TODO: remove the trailing comma.
+            sessionsString = sessionsString[:-1]
             speakerAnnString = '|'.join((sess.speaker, sessionsString))
             memcache.set('_'.join((MEMCACHE_FEATURED_SPEAKER_KEY, wsck)), speakerAnnString)
-               
-        # retrieved string is {speakerName}|[{session.name},]
-        memSpeaker = split('|', memSpeakerAnn)
-                 
-        # speaker being added is different to the current keynote speaker,
-        # see who has the higher session count and set memcache appropriately.
-        if memSpeaker != sess.speaker:
-            # if the speaker being added is different to the current keynote,
-            # check the counts of both
+        else:       
+            # retrieved string is {speakerName}|[{session.name},]
+            memSpeakerSplit = memSpeakerAnn.split('|')
             
-            # get the count of the newly added speaker
-            q1 = Session.query(ancestor=conf.key)
-            q1 = q1.filter(Session.speaker == sess.speaker)
+            # load the split values from array into more readable variables
+            speakerFromMem = memSpeakerSplit[0]
+        
+            # speaker being added is different to the current keynote speaker,
+            # see who has the higher session count and set memcache appropriately.
+            if speakerFromMem != sess.speaker:
+                # if the speaker being added is different to the current keynote,
+                # check the counts of both
             
-            # get the count of the current keynote speaker
-            q2 = Session.query(ancestor=conf.key)
-            q2 = q2.filter(Session.speaker == memSpeaker)
+                # get the count of the newly added speaker
+                q1 = Session.query(ancestor=conf.key)
+                q1 = q1.filter(Session.speaker == sess.speaker)
             
-            # if the newly added sessions speaker has more sessions, set to be the keynote.
-            if q1.count > q2.count:
-                # initialise the empty string
-                sessionsString = ''
+                # get the count of the current keynote speaker
+                q2 = Session.query(ancestor=conf.key)
+                q2 = q2.filter(Session.speaker == speakerFromMem)
             
-                # iterate over all of the speakers sessions
-                for ss in q1:
-                    # add the session name to the string
-                    sessionsString.append((ss.name,','))
+                # if the newly added sessions speaker has more sessions, set to be the keynote.
+                if q1.count > q2.count:
+                    # initialise an empty string to append each session to.
+                    sessionsString = ''
+            
+                    # iterate over all of the speakers sessions
+                    for ss in q1:
+                        # add the session name to the string
+                        sessionsString += "%s," % ss.name
                 
-                # TODO: remove the trailing comma.
-                speakerAnnString = '|'.join((sess.speaker, sessionsString))
-                memcache.set('_'.join((MEMCACHE_FEATURED_SPEAKER_KEY, wsck)), speakerAnnString)
+                    # trim the trailing comma
+                    sessionsString = sessionsString[:-1]
+                    # join the speaker name and sessions
+                    speakerAnnString = '|'.join((sess.speaker, sessionsString))
+                    # set the memcache entry to the final announcement string for the speaker.
+                    memcache.set('_'.join((MEMCACHE_FEATURED_SPEAKER_KEY, wsck)), speakerAnnString)
+            else: 
+                # current speaker is already set to be featured. retreive the memcache string
+                # and append the new session name to the string with a leading comma.
+                memSpeakerAnn = memcache.get('_'.join((MEMCACHE_FEATURED_SPEAKER_KEY, wsck)))
+                memcache.set('_'.join((MEMCACHE_FEATURED_SPEAKER_KEY, wsck)), ','.join((memSpeakerAnn, sess.name)))
                 
           
     @endpoints.method(CONF_GET_REQUEST, StringMessage,

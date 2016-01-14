@@ -79,6 +79,7 @@ class Session(ndb.Model):
     startTime               = ndb.TimeProperty()
     sessionDate             = ndb.DateProperty()
     typeOfSession           = ndb.StringProperty(default='NOT_SPECIFIED')
+    duration                = ndb.IntegerProperty()
     speaker                 = ndb.StringProperty(required=True)
 
 
@@ -108,6 +109,7 @@ class SessionForm(messages.Message):
     typeOfSession           = messages.EnumField('TypeOfSession', 6)
     speaker                 = messages.StringField(7)
     websafeKey              = messages.StringField(8)
+    duration                = messages.IntegerField(9)
 
 
 class ConferenceForms(messages.Message):
