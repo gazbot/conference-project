@@ -27,16 +27,15 @@ App Engine application for the Udacity training course.
 ## Project Tasks
 ### Task 1
 `Session` and `SessionForm` have been implemented in `models.py`, `speaker` is defined as a String field, `Session`'s are linked to Conferences upon creation via parent/ancestor linking in NDB.
-
-`name`, StringProperty chosen as it is text, required because it is needed for the app to work correctly.
-`description`, StringProperty chosen as it is text, not required.
-`highlights`, Repeated StringProperty as there can be multiple highlights in a `Session`
-`startTime`, TimeProperty as there may be potential use to calculate the duration if an endTime was added too.
-`sessionDate`, DateProperty so logic could be used in the future, ie: you cant create a Session in the past.
-`typeOfSession`, Enumerated StringProperty is used here as logic in other areas of the app use specific types to determine results. Poor data entry could prevent the app from working fully.
-`duration`, Integer was chosen because it could handle hours or minute durations once implemented.
-`speaker`, String was chosen for ease of implementation, this could be expanded out into another Model which would 
-decrease the _calculateFeaturedSpeaker logic as it would be a NDB query, but would need a significant rewrite.
+Field type reasoning:
+* `name`, StringProperty chosen as it is text, required because it is needed for the app to work correctly.
+* `description`, StringProperty chosen as it is text, not required.
+* `highlights`, Repeated StringProperty as there can be multiple highlights in a `Session`
+* `startTime`, TimeProperty as there may be potential use to calculate the duration if an endTime was added too.
+* `sessionDate`, DateProperty so logic could be used in the future, ie: you cant create a Session in the past.
+* `typeOfSession`, Enumerated StringProperty is used here as logic in other areas of the app use specific types to determine results. Poor data entry could prevent the app from working fully.
+* `duration`, Integer was chosen because it could handle hours or minute durations once implemented.
+* `speaker`, String was chosen for ease of implementation, this could be expanded out into another Model which would decrease the _calculateFeaturedSpeaker logic as it would be a NDB query, but would need a significant rewrite.
 
 ### Task 2
 A `Session` can be added/removed from a user's Wishlist, regardless of being registered
