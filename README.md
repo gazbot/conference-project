@@ -27,7 +27,7 @@ App Engine application for the Udacity training course.
 ## Project Tasks
 ### Task 1
 `Session` and `SessionForm` have been implemented in `models.py`, `speaker` is defined as a String field, `Session`'s are linked to Conferences upon creation via parent/ancestor linking in NDB.
-Field type reasoning:
+##### Field type reasoning:
 * `name`, StringProperty chosen as it is text, required because it is needed for the app to work correctly.
 * `description`, StringProperty chosen as it is text, not required.
 * `highlights`, Repeated StringProperty as there can be multiple highlights in a `Session`
