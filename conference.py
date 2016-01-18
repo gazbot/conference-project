@@ -14,6 +14,7 @@ __author__ = 'wesc+api@google.com (Wesley Chun)'
 
 
 from datetime import datetime
+import time
 
 import endpoints
 from protorpc import messages
@@ -909,9 +910,19 @@ class ConferenceApi(remote.Service):
         path='getAllSessionsByType',
         http_method='GET', name='getAllSessionsByType')
     def getAllSessionsByType(self, request):
-        """Return all Sessions, regardless of Conference, by type"""
-        typeOfSession = request.typeOfSession
-        q = Session.query(Session.typeOfSession == typeOfSession)
+        """Return all Sessions, regardless of Conference, optional filter by type and speaker"""
+        
+        # open new query on Session
+        q = Session.query()
+        # apply speaker filter if provided
+        if request.speaker is not None:
+            q = q.filter(Session.speaker == request.speaker)
+        # apply session type filter if provided
+        if request.typeOfSession is not None:
+            q = q.filter(Session.typeOfSession == request.typeOfSession)
+        # fetch the results
+        q = q.fetch()
+        # return the results as session forms objects to display.
         return SessionForms(
             items=[self._copySessionToForm(sess)
                    for sess in q])
@@ -920,25 +931,39 @@ class ConferenceApi(remote.Service):
     @endpoints.method(CONF_SESS_GET_REQUEST, SessionForms,
         path='/conference/{websafeConferenceKey}/top',
         http_method='GET', name='getTopSessionsForConference')
-    def getWorkshopsStartingSoonForConference():
+    def getWorkshopsStartingSoonForConference(self, request):
         """Return three sessions starting soon for a Conference"""
         wsck = request.websafeConferenceKey
         conf = ndb.Key(urlsafe=wsck).get()
-        today = datetime.now()
+        
+        # check the provided conference exists.
         if not conf:
             raise endpoints.NotFoundException(
                 'Invalid Conference ID: %s' % wsck)
-            
-        q = Session.query(Session.conferenceId==wsck)
-        q = q.filter(Session.sessionDate == today)
-        q = q.filter(Session.typeOfSession == 'WORKSHOP')
-        q = q.filter(Session.startTime > datetime.datetime.now())
-        q = q.order(Session.startTime)
-        q = q.fetch(3)
+
+        # Get current time.
+        currentTime = datetime.now().time()
+        # Get todays date in YYYY-MM-DD format
+        currentDate = datetime.now().date()
+        # set the times to zeroes in a string
+        tmpDateString = currentDate.strftime('%Y-%m-%d 00:00:00')
+        # convert back to a datetime value to compare against ndb dateproperty (time zeroed out)
+        currentDate = datetime.strptime(tmpDateString, '%Y-%m-%d %H:%M:%S')
         
-        return SessionForms(
-            items=[self._copySessionToForm(sess, getattr(ndb.Key(urlsafe=sess.conferenceId.get())))
-                   for sess in q])
+        # find all WORKSHOPS for the conference starting today that haven't started yet.
+        q = Session.query(ancestor=conf.key)
+        q = q.filter(Session.sessionDate == currentDate)
+        # only filter on type if the parameter is entered.
+        if request.typeOfSession is not None:
+            q = q.filter(Session.typeOfSession == request.typeOfSession)
+        q = q.filter(Session.startTime > currentTime)
+        # order the results so the ones starting soon appear first
+        q = q.order(Session.startTime)
+        # only fetch the top results results.
+        q = q.fetch(3)
+
+        # provide the results back to the forms.
+        return SessionForms(items=[self._copySessionToForm(sess) for sess in q])
         
         
 api = endpoints.api_server([ConferenceApi]) # register API
